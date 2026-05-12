@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>夜枫天气</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      min-height: 100vh;
+      color: #fff;
+    }
+    .container { max-width: 480px; margin: 0 auto; padding: 20px; }
+    
+    /* 头部 */
+    .header {
+      text-align: center;
+      padding: 20px 0;
+    }
+    .header h1 {
+      font-size: 24px;
+      background: linear-gradient(135deg, #60a5fa, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    
+    /* 搜索框 */
+    .search-box {
+      display: flex;
+      gap: 10px;
+      margin: 20px 0;
+    }
+    .search-box input {
+      flex: 1;
+      padding: 14px 18px;
+      border: none;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      font-size: 16px;
+      backdrop-filter: blur(10px);
+    }
+    .search-box input::placeholder { color: rgba(255,255,255,0.5); }
+    .search-box button {
+      padding: 14px 24px;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #60a5fa, #a78bfa);
+      color: #fff;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    
+    /* 城市列表 */
+    .city-list { margin-top: 20px; }
+    .city-card {
+      background: rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 16px;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.1);
+      position: relative;
+    }
+    .city-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .city-name {
+      font-size: 20px;
+      font-weight: 600;
+    }
+    .delete-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: rgba(255,100,100,0.2);
+      border: none;
+      color: #ff6b6b;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    
+    /* 当前天气 */
+    .current-weather {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin: 16px 0;
+    }
+    .weather-icon { font-size: 64px; }
+    .temp { font-size: 48px; font-weight: 300; }
+    .weather-desc { font-size: 18px; color: rgba(255,255,255,0.7); margin-top: 4px; }
+    
+    /* 详细信息 */
+    .details {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .detail-item {
+      text-align: center;
+      padding: 12px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+    }
+    .detail-label { font-size: 12px; color: rgba(255,255,255,0.5); }
+    .detail-value { font-size: 16px; margin-top: 4px; }
+    
+    /* 预报 */
+    .forecast { margin-top: 16px; }
+    .forecast-title { font-size: 14px; color: rgba(255,255,255,0.5); margin-bottom: 10px; }
+    .forecast-list { display: flex; gap: 10px; overflow-x: auto; }
+    .forecast-item {
+      flex-shrink: 0;
+      width: 80px;
+      text-align: center;
+      padding: 12px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+    }
+    .forecast-day { font-size: 12px; color: rgba(255,255,255,0.5); }
+    .forecast-icon { font-size: 28px; margin: 8px 0; }
+    .forecast-temp { font-size: 14px; }
+    
+    /* 加载状态 */
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: rgba(255,255,255,0.5);
+    }
+    .loading::after {
+      content: '';
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-left: 10px;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    
+    /* 空状态 */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: rgba(255,255,255,0.5);
+    }
+    .empty-state .icon { font-size: 64px; margin-bottom: 16px; }
+    
+    /* 快捷城市 */
+    .quick-cities {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 16px;
+    }
+    .quick-city {
+      padding: 8px 16px;
+      background: rgba(255,255,255,0.1);
+      border: none;
+      border-radius: 20px;
+      color: #fff;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .quick-city:active { background: rgba(255,255,255,0.2); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🌙 夜枫天气</h1>
+    </div>
+    
+    <div class="search-box">
+      <input type="text" id="cityInput" placeholder="输入城市名，如：北京" onkeypress="if(event.key==='Enter')addCity()">
+      <button onclick="addCity()">添加</button>
+    </div>
+    
+    <div id="cityList" class="city-list"></div>
+  </div>
+
+  <script>
+    // 城市经纬度数据库
+    const CITIES = {
+      '北京': { lat: 39.9042, lon: 116.4074 },
+      '上海': { lat: 31.2304, lon: 121.4737 },
+      '广州': { lat: 23.1291, lon: 113.2644 },
+      '深圳': { lat: 22.5431, lon: 114.0579 },
+      '成都': { lat: 30.5728, lon: 104.0668 },
+      '重庆': { lat: 29.4316, lon: 106.9123 },
+      '武汉': { lat: 30.5928, lon: 114.3055 },
+      '西安': { lat: 34.3416, lon: 108.9398 },
+      '杭州': { lat: 30.2741, lon: 120.1551 },
+      '南京': { lat: 32.0603, lon: 118.7969 },
+      '天津': { lat: 39.3434, lon: 117.3616 },
+      '苏州': { lat: 31.2989, lon: 120.5853 },
+      '郑州': { lat: 34.7466, lon: 113.6253 },
+      '长沙': { lat: 28.2282, lon: 112.9388 },
+      '青岛': { lat: 36.0671, lon: 120.3826 },
+      '济南': { lat: 36.6512, lon: 117.1205 },
+      '福州': { lat: 26.0745, lon: 119.2965 },
+      '厦门': { lat: 24.4798, lon: 118.0894 },
+      '昆明': { lat: 25.0406, lon: 102.7129 },
+      '贵阳': { lat: 26.6470, lon: 106.6302 },
+      '南宁': { lat: 22.8170, lon: 108.3665 },
+      '海口': { lat: 20.0444, lon: 110.1999 },
+      '兰州': { lat: 36.0611, lon: 103.8343 },
+      '银川': { lat: 38.4680, lon: 106.2731 },
+      '西宁': { lat: 36.6171, lon: 101.7782 },
+      '乌鲁木齐': { lat: 43.8256, lon: 87.6168 },
+      '拉萨': { lat: 29.6500, lon: 91.1000 },
+      '沈阳': { lat: 41.8056, lon: 123.4328 },
+      '长春': { lat: 43.8171, lon: 125.3235 },
+      '哈尔滨': { lat: 45.8038, lon: 126.5340 },
+      '大连': { lat: 38.9144, lon: 121.6147 },
+      '石家庄': { lat: 38.0428, lon: 114.5149 },
+      '太原': { lat: 37.8706, lon: 112.5489 },
+      '保定': { lat: 38.8738, lon: 115.4646 },
+      '唐山': { lat: 39.6306, lon: 118.1802 },
+      '天水': { lat: 34.5809, lon: 105.7244 },
+    };
+
+    // 天气代码映射
+    const WEATHER_CODES = {
+      0: { text: '晴', icon: '☀️' },
+      1: { text: '晴间多云', icon: '🌤️' },
+      2: { text: '多云', icon: '⛅' },
+      3: { text: '阴', icon: '☁️' },
+      45: { text: '雾', icon: '🌫️' },
+      48: { text: '雾凇', icon: '🌫️' },
+      51: { text: '小毛毛雨', icon: '🌦️' },
+      53: { text: '中毛毛雨', icon: '🌧️' },
+      55: { text: '大毛毛雨', icon: '🌧️' },
+      61: { text: '小雨', icon: '🌧️' },
+      63: { text: '中雨', icon: '🌧️' },
+      65: { text: '大雨', icon: '🌧️' },
+      71: { text: '小雪', icon: '🌨️' },
+      73: { text: '中雪', icon: '❄️' },
+      75: { text: '大雪', icon: '❄️' },
+      77: { text: '雪粒', icon: '🌨️' },
+      80: { text: '小阵雨', icon: '🌦️' },
+      81: { text: '中阵雨', icon: '🌧️' },
+      82: { text: '大阵雨', icon: '⛈️' },
+      85: { text: '小阵雪', icon: '🌨️' },
+      86: { text: '大阵雪', icon: '❄️' },
+      95: { text: '雷暴', icon: '⛈️' },
+      96: { text: '雷暴冰雹', icon: '⛈️' },
+      99: { text: '雷暴冰雹', icon: '⛈️' },
+    };
+
+    // 状态管理
+    let cities = JSON.parse(localStorage.getItem('nightweather_cities') || '["北京","上海","广州"]');
+
+    // 初始化
+    function init() {
+      renderCities();
+    }
+
+    // 保存城市列表
+    function saveCities() {
+      localStorage.setItem('nightweather_cities', JSON.stringify(cities));
+    }
+
+    // 添加城市
+    function addCity() {
+      const input = document.getElementById('cityInput');
+      let name = input.value.trim();
+      
+      // 如果输入的是经纬度格式，尝试解析
+      if (!name) return;
+      
+      // 模糊匹配
+      const matchCity = Object.keys(CITIES).find(c => 
+        c.includes(name) || name.includes(c)
+      );
+      
+      if (matchCity) {
+        name = matchCity;
+      } else if (!CITIES[name]) {
+        alert('未找到该城市，请输入正确的城市名！');
+        return;
+      }
+      
+      if (cities.includes(name)) {
+        alert('该城市已在列表中！');
+        return;
+      }
+      
+      cities.push(name);
+      saveCities();
+      input.value = '';
+      renderCities();
+    }
+
+    // 删除城市
+    function deleteCity(name) {
+      cities = cities.filter(c => c !== name);
+      saveCities();
+      renderCities();
+    }
+
+    // 渲染城市列表
+    async function renderCities() {
+      const container = document.getElementById('cityList');
+      
+      if (cities.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="icon">🌤️</div>
+            <p>还没有添加城市</p>
+            <p style="font-size:12px;margin-top:8px">在上方搜索框输入城市名添加</p>
+          </div>
+          <div class="quick-cities">
+            ${Object.keys(CITIES).slice(0, 12).map(c => 
+              `<button class="quick-city" onclick="cities.push('${c}');saveCities();renderCities()">${c}</button>`
+            ).join('')}
+          </div>
+        `;
+        return;
+      }
+      
+      container.innerHTML = cities.map(name => `
+        <div class="city-card" id="card-${name}">
+          <div class="city-card-header">
+            <span class="city-name">${name}</span>
+            <button class="delete-btn" onclick="deleteCity('${name}')">×</button>
+          </div>
+          <div id="weather-${name}">
+            <div class="loading">加载中</div>
+          </div>
+        </div>
+      `).join('');
+      
+      // 并行获取天气
+      cities.forEach(name => fetchWeather(name));
+    }
+
+    // 获取天气
+    async function fetchWeather(name) {
+      const city = CITIES[name];
+      if (!city) return;
+      
+      try {
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=Asia/Shanghai&forecast_days=3`;
+        
+        const res = await fetch(url);
+        const data = await res.json();
+        
+        renderWeather(name, data);
+      } catch (e) {
+        document.getElementById(`weather-${name}`).innerHTML = `
+          <div style="color:#ff6b6b;text-align:center;padding:20px">
+            ⚠️ 加载失败
+            <button onclick="fetchWeather('${name}')" style="margin-left:10px;background:#ff6b6b;color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer">重试</button>
+          </div>
+        `;
+      }
+    }
+
+    // 渲染天气
+    function renderWeather(name, data) {
+      const current = data.current;
+      const daily = data.daily;
+      
+      const weather = WEATHER_CODES[current.weather_code] || { text: '未知', icon: '❓' };
+      const today = new Date().getDay();
+      const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
+      
+      document.getElementById(`weather-${name}`).innerHTML = `
+        <div class="current-weather">
+          <span class="weather-icon">${weather.icon}</span>
+          <div>
+            <span class="temp">${Math.round(current.temperature_2m)}°</span>
+            <div class="weather-desc">${weather.text} · 体感 ${Math.round(current.apparent_temperature)}°</div>
+          </div>
+        </div>
+        
+        <div class="details">
+          <div class="detail-item">
+            <div class="detail-label">湿度</div>
+            <div class="detail-value">${current.relative_humidity_2m}%</div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-label">风速</div>
+            <div class="detail-value">${current.wind_speed_10m} km/h</div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-label">体感</div>
+            <div class="detail-value">${Math.round(current.apparent_temperature)}°</div>
+          </div>
+        </div>
+        
+        <div class="forecast">
+          <div class="forecast-title">天气预报</div>
+          <div class="forecast-list">
+            ${daily.time.map((t, i) => {
+              const d = new Date(t);
+              const day = dayNames[d.getDay()];
+              const w = WEATHER_CODES[daily.weather_code[i]] || { text: '未知', icon: '❓' };
+              return `
+                <div class="forecast-item">
+                  <div class="forecast-day">${i === 0 ? '今天' : '周' + day}</div>
+                  <div class="forecast-icon">${w.icon}</div>
+                  <div class="forecast-temp">${Math.round(daily.temperature_2m_min[i])}° ~ ${Math.round(daily.temperature_2m_max[i])}°</div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    // 启动
+    init();
+  </script>
+</body>
+</html>

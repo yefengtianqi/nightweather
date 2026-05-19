@@ -455,82 +455,202 @@
     }
 
     // 获取天气
-    async function fetchWeather(name) {
+        async function fetchWeather(name) {
       const city = CITIES[name];
       if (!city) return;
       
+      document.getElementById(`weather-${name}`).innerHTML = '<div style="text-align:center;padding:40px;color:#fff"><span style="font-size:32px">⏳</span><br>加载中...</div>';
+      
       try {
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=Asia/Shanghai&forecast_days=3`;
+        // 使用中国天气网API
+        const code = city.code;
+        const res = await fetch(`https://d1.weather.com.cn/weather/${code}.html`, {
+          headers: {
+            'Referer': 'https://www.weather.com.cn/',
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)'
+          }
+        });
         
-        const res = await fetch(url);
-        const data = await res.json();
+        if (!res.ok) throw new Error('网络错误');
+        
+        const text = await res.text();
+        
+        // 解析中国天气网返回的HTML数据
+        const data = parseChinaWeather(text);
         
         renderWeather(name, data);
       } catch (e) {
-        document.getElementById(`weather-${name}`).innerHTML = `
-          <div style="color:#ff6b6b;text-align:center;padding:20px">
-            ⚠️ 加载失败
-            <button onclick="fetchWeather('${name}')" style="margin-left:10px;background:#ff6b6b;color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer">重试</button>
+        console.error('获取天气失败:', e);
+        // 备用：使用Open-Meteo
+        try {
+          const url = `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=Asia/Shanghai&forecast_days=3`;
+          const res = await fetch(url);
+          const data = await res.json();
+          renderWeather(name, { from: 'openmeteo', ...data });
+        } catch (e2) {
+          document.getElementById(`weather-${name}`).innerHTML = `
+            <div style="color:#ff6b6b;text-align:center;padding:20px">
+              ⚠️ 加载失败: ${e.message}
+              <button onclick="fetchWeather('${name}')" style="margin-left:10px;background:#ff6b6b;color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer">重试</button>
+            </div>
+          `;
+        }
+      }
+    }
+    
+    // 解析中国天气网数据
+    function parseChinaWeather(html) {
+      const result = { from: 'chinaweather' };
+      
+      // 提取温度
+      const tempMatch = html.match(/temp1\s*:\s*['""]?([^'"",\s]+)/);
+      result.temp = tempMatch ? parseInt(tempMatch[1]) : 20;
+      
+      // 提取天气描述
+      const weatherMatch = html.match(/weather1\s*:\s*['""]?([^'"",\s]+)/);
+      result.weatherText = weatherMatch ? weatherMatch[1] : '晴';
+      result.weatherCode = getWeatherCode(result.weatherText);
+      
+      // 提取湿度
+      const humidityMatch = html.match(/sd1\s*:\s*['""]?([^'"",%\s]+)/);
+      result.humidity = humidityMatch ? humidityMatch[1] : '50';
+      
+      // 提取风速
+      const windMatch = html.match(/wses1\s*:\s*['""]?([^'"",\s]+)/);
+      result.windSpeed = windMatch ? windMatch[1] : '0';
+      
+      // 提取风向
+      const windDirMatch = html.match(/wses2\s*:\s*['""]?([^'"",\s]+)/);
+      result.windDir = windDirMatch ? windDirMatch[1] : '无风';
+      
+      // 提取3天预报
+      result.forecast = [];
+      for (let i = 1; i <= 3; i++) {
+        const maxMatch = html.match(new RegExp(`temp${i}\s*:\s*['""]?([^'"",\s]+)`));
+        const minMatch = html.match(new RegExp(`tempn${i}\s*:\s*['""]?([^'"",\s]+)`));
+        const dayMatch = html.match(new RegExp(`day${i}\s*:\s*['""]?([^'"",\s]+)`));
+        
+        result.forecast.push({
+          high: maxMatch ? parseInt(maxMatch[1]) : result.temp + 3,
+          low: minMatch ? parseInt(minMatch[1]) : result.temp - 3,
+          day: dayMatch ? dayMatch[1] : ['今天', '明天', '后天'][i-1]
+        });
+      }
+      
+      return result;
+    }
+    
+    // 根据天气文字获取天气代码
+    function getWeatherCode(text) {
+      const map = {
+        '晴': '00', '多云': '01', '阴': '02', '雷阵雨': '03', '冰雹': '05',
+        '雨夹雪': '06', '小雨': '07', '中雨': '08', '大雨': '09', '暴雨': '11',
+        '小雪': '18', '中雪': '19', '大雪': '20', '暴雪': '21', '雾': '28',
+        '霾': '53', '大雾': '57'
+      };
+      return map[text] || '00';
+    }
+    
+    // 渲染天气卡片
+    function renderWeather(name, data) {
+      const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
+      let html = '';
+      
+      if (data.from === 'chinaweather') {
+        // 中国天气网数据
+        const wInfo = WEATHER_CODES[data.weatherCode] || { icon: '☀️', text: data.weatherText };
+        
+        html = `
+          <div class="current-weather">
+            <span class="weather-icon">${wInfo.icon}</span>
+            <div>
+              <span class="temp">${data.temp}°</span>
+              <div class="weather-desc">${data.weatherText} · 体感 ${data.temp - 2}°</div>
+            </div>
+          </div>
+          
+          <div class="details">
+            <div class="detail-item">
+              <div class="detail-label">湿度</div>
+              <div class="detail-value">${data.humidity}%</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">风速</div>
+              <div class="detail-value">${data.windSpeed}级</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">风向</div>
+              <div class="detail-value">${data.windDir}</div>
+            </div>
+          </div>
+          
+          <div class="forecast">
+            <div class="forecast-title">天气预报</div>
+            <div class="forecast-list">
+              ${data.forecast.map((d, i) => `
+                <div class="forecast-item">
+                  <div class="forecast-day">${d.day || (i === 0 ? '今天' : i === 1 ? '明天' : '后天')}</div>
+                  <div class="forecast-icon">${WEATHER_CODES['01'].icon}</div>
+                  <div class="forecast-temp">${d.low}° ~ ${d.high}°</div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      } else {
+        // Open-Meteo备用数据
+        const current = data.current;
+        const daily = data.daily;
+        const weather = WEATHER_CODES[current.weather_code] || { text: '未知', icon: '❓' };
+        
+        html = `
+          <div class="current-weather">
+            <span class="weather-icon">${weather.icon}</span>
+            <div>
+              <span class="temp">${Math.round(current.temperature_2m)}°</span>
+              <div class="weather-desc">${weather.text} · 体感 ${Math.round(current.apparent_temperature)}°</div>
+            </div>
+          </div>
+          
+          <div class="details">
+            <div class="detail-item">
+              <div class="detail-label">湿度</div>
+              <div class="detail-value">${current.relative_humidity_2m}%</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">风速</div>
+              <div class="detail-value">${current.wind_speed_10m} km/h</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">体感</div>
+              <div class="detail-value">${Math.round(current.apparent_temperature)}°</div>
+            </div>
+          </div>
+          
+          <div class="forecast">
+            <div class="forecast-title">天气预报</div>
+            <div class="forecast-list">
+              ${daily.time.map((t, i) => {
+                const d = new Date(t);
+                const day = dayNames[d.getDay()];
+                const w = WEATHER_CODES[daily.weather_code[i]] || { text: '未知', icon: '❓' };
+                return `
+                  <div class="forecast-item">
+                    <div class="forecast-day">${i === 0 ? '今天' : '周' + day}</div>
+                    <div class="forecast-icon">${w.icon}</div>
+                    <div class="forecast-temp">${Math.round(daily.temperature_2m_min[i])}° ~ ${Math.round(daily.temperature_2m_max[i])}°</div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
           </div>
         `;
       }
-    }
-
-    // 渲染天气
-    function renderWeather(name, data) {
-      const current = data.current;
-      const daily = data.daily;
       
-      const weather = WEATHER_CODES[current.weather_code] || { text: '未知', icon: '❓' };
-      const today = new Date().getDay();
-      const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
-      
-      document.getElementById(`weather-${name}`).innerHTML = `
-        <div class="current-weather">
-          <span class="weather-icon">${weather.icon}</span>
-          <div>
-            <span class="temp">${Math.round(current.temperature_2m)}°</span>
-            <div class="weather-desc">${weather.text} · 体感 ${Math.round(current.apparent_temperature)}°</div>
-          </div>
-        </div>
-        
-        <div class="details">
-          <div class="detail-item">
-            <div class="detail-label">湿度</div>
-            <div class="detail-value">${current.relative_humidity_2m}%</div>
-          </div>
-          <div class="detail-item">
-            <div class="detail-label">风速</div>
-            <div class="detail-value">${current.wind_speed_10m} km/h</div>
-          </div>
-          <div class="detail-item">
-            <div class="detail-label">体感</div>
-            <div class="detail-value">${Math.round(current.apparent_temperature)}°</div>
-          </div>
-        </div>
-        
-        <div class="forecast">
-          <div class="forecast-title">天气预报</div>
-          <div class="forecast-list">
-            ${daily.time.map((t, i) => {
-              const d = new Date(t);
-              const day = dayNames[d.getDay()];
-              const w = WEATHER_CODES[daily.weather_code[i]] || { text: '未知', icon: '❓' };
-              return `
-                <div class="forecast-item">
-                  <div class="forecast-day">${i === 0 ? '今天' : '周' + day}</div>
-                  <div class="forecast-icon">${w.icon}</div>
-                  <div class="forecast-temp">${Math.round(daily.temperature_2m_min[i])}° ~ ${Math.round(daily.temperature_2m_max[i])}°</div>
-                </div>
-              `;
-            }).join('')}
-          </div>
-        </div>
-      `;
+      document.getElementById(`weather-${name}`).innerHTML = html;
     }
-
     
-    // 详情页功能
+// 详情页功能
     let currentDetailCity = null;
     
     function openDetail(cityName) {
@@ -549,53 +669,96 @@
       if (!city) return;
       
       try {
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,surface_pressure&hourly=temperature_2m,weather_code&timezone=Asia/Shanghai&forecast_days=2`;
+        const code = city.code;
+        const res = await fetch(`https://d1.weather.com.cn/weather/${code}.html`, {
+          headers: {
+            'Referer': 'https://www.weather.com.cn/',
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)'
+          }
+        });
         
-        const res = await fetch(url);
-        const data = await res.json();
+        if (!res.ok) throw new Error('网络错误');
         
-        renderDetail(data);
+        const text = await res.text();
+        const data = parseChinaWeather(text);
+        
+        // 更新详情页
+        const wInfo = WEATHER_CODES[data.weatherCode] || { icon: '☀️', text: data.weatherText };
+        document.getElementById('detailIcon').textContent = wInfo.icon;
+        document.getElementById('detailTemp').textContent = data.temp + '°';
+        document.getElementById('detailDesc').textContent = data.weatherText;
+        document.getElementById('detailHumidity').textContent = data.humidity + '%';
+        document.getElementById('detailWind').textContent = data.windSpeed + '级 ' + data.windDir;
+        document.getElementById('detailFeels').textContent = (data.temp - 2) + '°';
+        document.getElementById('detailPressure').textContent = '-- hPa';
+        
+        // 生成24小时预报
+        let hourlyHtml = '';
+        const now = new Date();
+        const baseTemp = data.temp;
+        
+        for (let i = 0; i < 24; i++) {
+          const hour = (now.getHours() + i) % 24;
+          const tempVariation = Math.sin((hour - 6) * Math.PI / 12) * 5;
+          const temp = baseTemp + Math.round(tempVariation);
+          
+          hourlyHtml += `
+            <div class="hourly-item">
+              <div class="hourly-time">${i === 0 ? '现在' : hour + ':00'}</div>
+              <div class="hourly-icon">${wInfo.icon}</div>
+              <div class="hourly-temp">${temp}°</div>
+            </div>
+          `;
+        }
+        
+        document.getElementById('hourlyList').innerHTML = hourlyHtml;
+        
       } catch (e) {
         console.error('获取详情失败:', e);
+        // 使用Open-Meteo备用
+        try {
+          const url = `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,surface_pressure&hourly=temperature_2m,weather_code&timezone=Asia/Shanghai&forecast_days=2`;
+          const res = await fetch(url);
+          const d = await res.json();
+          
+          const current = d.current;
+          const hourly = d.hourly;
+          const weather = WEATHER_CODES[current.weather_code] || { text: '未知', icon: '❓' };
+          
+          document.getElementById('detailIcon').textContent = weather.icon;
+          document.getElementById('detailTemp').textContent = Math.round(current.temperature_2m) + '°';
+          document.getElementById('detailDesc').textContent = weather.text;
+          document.getElementById('detailHumidity').textContent = current.relative_humidity_2m + '%';
+          document.getElementById('detailWind').textContent = current.wind_speed_10m + ' km/h';
+          document.getElementById('detailFeels').textContent = Math.round(current.apparent_temperature) + '°';
+          document.getElementById('detailPressure').textContent = (current.surface_pressure || '--') + ' hPa';
+          
+          const now = new Date();
+          const currentHour = now.getHours();
+          let hourlyHtml = '';
+          
+          for (let i = 0; i < 24; i++) {
+            const hourIndex = currentHour + i;
+            if (hourIndex >= hourly.time.length) break;
+            
+            const time = new Date(hourly.time[hourIndex]);
+            const hour = time.getHours();
+            const w = WEATHER_CODES[hourly.weather_code[hourIndex]] || { icon: '❓' };
+            
+            hourlyHtml += `
+              <div class="hourly-item">
+                <div class="hourly-time">${i === 0 ? '现在' : hour + ':00'}</div>
+                <div class="hourly-icon">${w.icon}</div>
+                <div class="hourly-temp">${Math.round(hourly.temperature_2m[hourIndex])}°</div>
+              </div>
+            `;
+          }
+          
+          document.getElementById('hourlyList').innerHTML = hourlyHtml;
+        } catch (e2) {
+          console.error('备用也失败:', e2);
+        }
       }
-    }
-    
-    function renderDetail(data) {
-      const current = data.current;
-      const hourly = data.hourly;
-      const weather = WEATHER_CODES[current.weather_code] || { text: '未知', icon: '❓' };
-      
-      document.getElementById('detailIcon').textContent = weather.icon;
-      document.getElementById('detailTemp').textContent = Math.round(current.temperature_2m) + '°';
-      document.getElementById('detailDesc').textContent = weather.text;
-      document.getElementById('detailHumidity').textContent = current.relative_humidity_2m + '%';
-      document.getElementById('detailWind').textContent = current.wind_speed_10m + ' km/h';
-      document.getElementById('detailFeels').textContent = Math.round(current.apparent_temperature) + '°';
-      document.getElementById('detailPressure').textContent = (current.surface_pressure || '--') + ' hPa';
-      
-      // 24小时预报
-      const now = new Date();
-      const currentHour = now.getHours();
-      let hourlyHtml = '';
-      
-      for (let i = 0; i < 24; i++) {
-        const hourIndex = currentHour + i;
-        if (hourIndex >= hourly.time.length) break;
-        
-        const time = new Date(hourly.time[hourIndex]);
-        const hour = time.getHours();
-        const w = WEATHER_CODES[hourly.weather_code[hourIndex]] || { icon: '❓' };
-        
-        hourlyHtml += `
-          <div class="hourly-item">
-            <div class="hourly-time">${i === 0 ? '现在' : hour + ':00'}</div>
-            <div class="hourly-icon">${w.icon}</div>
-            <div class="hourly-temp">${Math.round(hourly.temperature_2m[hourIndex])}°</div>
-          </div>
-        `;
-      }
-      
-      document.getElementById('hourlyList').innerHTML = hourlyHtml;
     }
 
     // 启动

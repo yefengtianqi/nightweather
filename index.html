@@ -1,805 +1,185 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>夜枫天气</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-      min-height: 100vh;
-      color: #fff;
-    }
-    .container { max-width: 480px; margin: 0 auto; padding: 20px; }
-    
-    /* 头部 */
-    .header {
-      text-align: center;
-      padding: 20px 0;
-    }
-    .header h1 {
-      font-size: 24px;
-      background: linear-gradient(135deg, #60a5fa, #a78bfa);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-    
-    /* 搜索框 */
-    .search-box {
-      display: flex;
-      gap: 10px;
-      margin: 20px 0;
-    }
-    .search-box input {
-      flex: 1;
-      padding: 14px 18px;
-      border: none;
-      border-radius: 12px;
-      background: rgba(255,255,255,0.1);
-      color: #fff;
-      font-size: 16px;
-      backdrop-filter: blur(10px);
-    }
-    .search-box input::placeholder { color: rgba(255,255,255,0.5); }
-    .search-box button {
-      padding: 14px 24px;
-      border: none;
-      border-radius: 12px;
-      background: linear-gradient(135deg, #60a5fa, #a78bfa);
-      color: #fff;
-      font-size: 16px;
-      cursor: pointer;
-    }
-    
-    /* 城市列表 */
-    .city-list { margin-top: 20px; }
-    .city-card {
-      background: rgba(255,255,255,0.08);
-      border-radius: 16px;
-      padding: 20px;
-      margin-bottom: 16px;
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255,255,255,0.1);
-      position: relative;
-    }
-    .city-card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 12px;
-    }
-    .city-name {
-      font-size: 20px;
-      font-weight: 600;
-    }
-    .delete-btn {
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      background: rgba(255,100,100,0.2);
-      border: none;
-      color: #ff6b6b;
-      cursor: pointer;
-      font-size: 16px;
-    }
-    
-    /* 当前天气 */
-    .current-weather {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      margin: 16px 0;
-    }
-    .weather-icon { font-size: 64px; }
-    .temp { font-size: 48px; font-weight: 300; }
-    .weather-desc { font-size: 18px; color: rgba(255,255,255,0.7); margin-top: 4px; }
-    
-    /* 详细信息 */
-    .details {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-      margin-top: 16px;
-    }
-    .detail-item {
-      text-align: center;
-      padding: 12px;
-      background: rgba(255,255,255,0.05);
-      border-radius: 12px;
-    }
-    .detail-label { font-size: 12px; color: rgba(255,255,255,0.5); }
-    .detail-value { font-size: 16px; margin-top: 4px; }
-    
-    /* 预报 */
-    .forecast { margin-top: 16px; }
-    .forecast-title { font-size: 14px; color: rgba(255,255,255,0.5); margin-bottom: 10px; }
-    .forecast-list { display: flex; gap: 10px; overflow-x: auto; }
-    .forecast-item {
-      flex-shrink: 0;
-      width: 80px;
-      text-align: center;
-      padding: 12px;
-      background: rgba(255,255,255,0.05);
-      border-radius: 12px;
-    }
-    .forecast-day { font-size: 12px; color: rgba(255,255,255,0.5); }
-    .forecast-icon { font-size: 28px; margin: 8px 0; }
-    .forecast-temp { font-size: 14px; }
-    
-    /* 加载状态 */
-    .loading {
-      text-align: center;
-      padding: 40px;
-      color: rgba(255,255,255,0.5);
-    }
-    .loading::after {
-      content: '';
-      display: inline-block;
-      width: 20px;
-      height: 20px;
-      border: 2px solid rgba(255,255,255,0.3);
-      border-top-color: #fff;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-      margin-left: 10px;
-      vertical-align: middle;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    
-    /* 空状态 */
-    .empty-state {
-      text-align: center;
-      padding: 60px 20px;
-      color: rgba(255,255,255,0.5);
-    }
-    .empty-state .icon { font-size: 64px; margin-bottom: 16px; }
-    
-    /* 快捷城市 */
-    .quick-cities {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 16px;
-    }
-    .quick-city {
-      padding: 8px 16px;
-      background: rgba(255,255,255,0.1);
-      border: none;
-      border-radius: 20px;
-      color: #fff;
-      font-size: 14px;
-      cursor: pointer;
-    }
-    .quick-city:active { background: rgba(255,255,255,0.2); }
-  
-    /* 详情页 */
-    .detail-modal {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-      z-index: 1000;
-      overflow-y: auto;
-      display: none;
-    }
-    .detail-modal.active { display: block; }
-    .detail-header {
-      display: flex;
-      align-items: center;
-      padding: 16px 20px;
-      border-bottom: 1px solid rgba(255,255,255,0.1);
-    }
-    .back-btn {
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      background: rgba(255,255,255,0.1);
-      border: none;
-      color: #fff;
-      font-size: 20px;
-      cursor: pointer;
-      margin-right: 16px;
-    }
-    .detail-title {
-      font-size: 20px;
-      font-weight: 600;
-    }
-    .detail-content { padding: 20px; }
-    .detail-main {
-      text-align: center;
-      padding: 30px 0;
-    }
-    .detail-icon { font-size: 100px; }
-    .detail-temp { font-size: 72px; font-weight: 300; }
-    .detail-desc { font-size: 20px; color: rgba(255,255,255,0.7); margin-top: 8px; }
-    .detail-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 12px;
-      margin: 24px 0;
-    }
-    .detail-item-large {
-      background: rgba(255,255,255,0.08);
-      border-radius: 16px;
-      padding: 20px;
-      text-align: center;
-    }
-    .detail-item-large .label { font-size: 14px; color: rgba(255,255,255,0.5); margin-bottom: 8px; }
-    .detail-item-large .value { font-size: 24px; font-weight: 600; }
-    .hourly-section { margin-top: 24px; }
-    .section-title { font-size: 16px; color: rgba(255,255,255,0.7); margin-bottom: 16px; }
-    .hourly-list {
-      display: flex;
-      gap: 16px;
-      overflow-x: auto;
-      padding-bottom: 8px;
-    }
-    .hourly-item {
-      flex-shrink: 0;
-      text-align: center;
-      padding: 16px 12px;
-      background: rgba(255,255,255,0.08);
-      border-radius: 12px;
-      min-width: 70px;
-    }
-    .hourly-time { font-size: 14px; color: rgba(255,255,255,0.5); }
-    .hourly-icon { font-size: 32px; margin: 8px 0; }
-    .hourly-temp { font-size: 16px; font-weight: 600; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>天气数据查询工具 V2.0 下载</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        .download-card {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .platform-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+        }
+        .download-card h2 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+            color: #666;
+        }
+        .info-row:last-child {
+            border-bottom: none;
+        }
+        .info-row span:first-child {
+            color: #999;
+        }
+        .info-row span:last-child {
+            color: #333;
+            font-weight: 500;
+        }
+        .download-btn {
+            display: block;
+            width: 100%;
+            padding: 18px;
+            margin-top: 25px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        .download-btn.macos {
+            background: linear-gradient(135deg, #007AFF 0%, #5856D6 100%);
+            color: white;
+        }
+        .download-btn.macos:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0,122,255,0.4);
+        }
+        .download-btn.windows {
+            background: linear-gradient(135deg, #0078D4 0%, #106EBE 100%);
+            color: white;
+        }
+        .download-btn.windows:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0,120,212,0.4);
+        }
+        .hint {
+            text-align: center;
+            color: #999;
+            font-size: 0.9em;
+            margin-top: 15px;
+        }
+        .footer {
+            text-align: center;
+            color: white;
+            opacity: 0.8;
+            margin-top: 40px;
+            font-size: 0.9em;
+        }
+        .badge {
+            display: inline-block;
+            background: #34C759;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            margin-left: 10px;
+        }
+        @media (max-width: 480px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+            .download-card {
+                padding: 20px;
+            }
+        }
+    </style>
 </head>
 <body>
-  <div class="container">
-    <div class="header">
-      <h1>🌙 夜枫天气</h1>
+    <div class="container">
+        <div class="header">
+            <h1>🌤️ 天气数据查询工具</h1>
+            <p>V2.0 正式版发布</p>
+        </div>
+
+        <div class="download-card">
+            <div class="platform-icon">🍎</div>
+            <h2>macOS 版 <span class="badge">推荐</span></h2>
+            <div class="info-row">
+                <span>平台</span>
+                <span>Apple Silicon (M1/M2/M3/M4)</span>
+            </div>
+            <div class="info-row">
+                <span>文件大小</span>
+                <span>118 MB</span>
+            </div>
+            <div class="info-row">
+                <span>系统要求</span>
+                <span>macOS 12.0+</span>
+            </div>
+            <a href="https://jsonproxy.3g.qq.com/urlmapper/zsT9Ea" class="download-btn macos" target="_blank">
+                ⬇️ 立即下载 macOS 版
+            </a>
+            <p class="hint">下载后解压，将 .app 拖入应用程序文件夹即可使用</p>
+        </div>
+
+        <div class="download-card">
+            <div class="platform-icon">🪟</div>
+            <h2>Windows 版</h2>
+            <div class="info-row">
+                <span>平台</span>
+                <span>Windows 10/11 (64位)</span>
+            </div>
+            <div class="info-row">
+                <span>文件大小</span>
+                <span>107 MB</span>
+            </div>
+            <div class="info-row">
+                <span>系统要求</span>
+                <span>Windows 10+</span>
+            </div>
+            <a href="https://jsonproxy.3g.qq.com/urlmapper/F7XQ10" class="download-btn windows" target="_blank">
+                ⬇️ 立即下载 Windows 版
+            </a>
+            <p class="hint">下载后解压，双击 .exe 文件即可运行</p>
+        </div>
+
+        <div class="footer">
+            <p>💡 首次安装自动获得 3 天免费试用</p>
+            <p style="margin-top: 10px;">© 2026 天气数据查询工具</p>
+        </div>
     </div>
-    
-    <div class="search-box">
-      <input type="text" id="cityInput" placeholder="输入城市名，如：北京" onkeypress="if(event.key==='Enter')addCity()">
-      <button onclick="addCity()">添加</button>
-    </div>
-    
-    <div id="cityList" class="city-list"></div>
-  </div>
-
-  <script>
-    // 城市经纬度数据库
-    const CITIES = {
-      '北京': { lat: 39.9042, lon: 116.4074 },
-      '上海': { lat: 31.2304, lon: 121.4737 },
-      '广州': { lat: 23.1291, lon: 113.2644 },
-      '深圳': { lat: 22.5431, lon: 114.0579 },
-      '成都': { lat: 30.5728, lon: 104.0668 },
-      '重庆': { lat: 29.4316, lon: 106.9123 },
-      '武汉': { lat: 30.5928, lon: 114.3055 },
-      '西安': { lat: 34.3416, lon: 108.9398 },
-      '西安市': { lat: 34.3416, lon: 108.9398 },
-      '渭南市': { lat: 34.4994, lon: 109.5094 },
-      '延安市': { lat: 36.5853, lon: 109.4898 },
-      '汉中市': { lat: 33.0676, lon: 107.0230 },
-      '武汉市': { lat: 30.5928, lon: 114.3055 },
-      '宜昌市': { lat: 30.6919, lon: 111.2864 },
-      '襄阳市': { lat: 32.0090, lon: 112.1221 },
-      '孝感市': { lat: 30.9175, lon: 113.9105 },
-      '荆州市': { lat: 30.3347, lon: 112.2407 },
-      '咸宁市': { lat: 29.8413, lon: 114.3226 },
-      '随州市': { lat: 31.6900, lon: 113.3833 },
-      '郑州市': { lat: 34.7466, lon: 113.6253 },
-      '开封市': { lat: 34.7971, lon: 114.3075 },
-      '安阳市': { lat: 36.0980, lon: 114.3926 },
-      '鹤壁市': { lat: 35.7471, lon: 114.2951 },
-      '焦作市': { lat: 35.2154, lon: 113.2420 },
-      '周口市': { lat: 33.6261, lon: 114.6969 },
-      '天水市': { lat: 34.5809, lon: 105.7244 },
-      '兰州市': { lat: 36.0611, lon: 103.8343 },
-      '杭州': { lat: 30.2741, lon: 120.1551 },
-      '南京': { lat: 32.0603, lon: 118.7969 },
-      '天津': { lat: 39.3434, lon: 117.3616 },
-      '苏州': { lat: 31.2989, lon: 120.5853 },
-      '郑州': { lat: 34.7466, lon: 113.6253 },
-      '长沙': { lat: 28.2282, lon: 112.9388 },
-      '青岛': { lat: 36.0671, lon: 120.3826 },
-      '济南': { lat: 36.6512, lon: 117.1205 },
-      '福州': { lat: 26.0745, lon: 119.2965 },
-      '厦门': { lat: 24.4798, lon: 118.0894 },
-      '昆明': { lat: 25.0406, lon: 102.7129 },
-      '贵阳': { lat: 26.6470, lon: 106.6302 },
-      '南宁': { lat: 22.8170, lon: 108.3665 },
-      '海口': { lat: 20.0444, lon: 110.1999 },
-      '兰州': { lat: 36.0611, lon: 103.8343 },
-      '银川': { lat: 38.4680, lon: 106.2731 },
-      '西宁': { lat: 36.6171, lon: 101.7782 },
-      '乌鲁木齐': { lat: 43.8256, lon: 87.6168 },
-      '拉萨': { lat: 29.6500, lon: 91.1000 },
-      '沈阳': { lat: 41.8056, lon: 123.4328 },
-      '长春': { lat: 43.8171, lon: 125.3235 },
-      '哈尔滨': { lat: 45.8038, lon: 126.5340 },
-      '大连': { lat: 38.9144, lon: 121.6147 },
-      '石家庄': { lat: 38.0428, lon: 114.5149 },
-      '太原': { lat: 37.8706, lon: 112.5489 },
-      '保定': { lat: 38.8738, lon: 115.4646 },
-      '唐山': { lat: 39.6306, lon: 118.1802 },
-      '渭南': { lat: 34.4994, lon: 109.5094 },
-      '延安': { lat: 36.5853, lon: 109.4898 },
-      '汉中': { lat: 33.0676, lon: 107.0230 },
-      '宜昌': { lat: 30.6919, lon: 111.2864 },
-      '襄阳': { lat: 32.0090, lon: 112.1221 },
-      '孝感': { lat: 30.9175, lon: 113.9105 },
-      '荆州': { lat: 30.3347, lon: 112.2407 },
-      '咸宁': { lat: 29.8413, lon: 114.3226 },
-      '随州': { lat: 31.6900, lon: 113.3833 },
-      '开封': { lat: 34.7971, lon: 114.3075 },
-      '安阳': { lat: 36.0980, lon: 114.3926 },
-      '鹤壁': { lat: 35.7471, lon: 114.2951 },
-      '焦作': { lat: 35.2154, lon: 113.2420 },
-      '周口': { lat: 33.6261, lon: 114.6969 },
-      '天水': { lat: 34.5809, lon: 105.7244 },
-    };
-
-    // 天气代码映射
-    const WEATHER_CODES = {
-      0: { text: '晴', icon: '☀️' },
-      1: { text: '晴间多云', icon: '🌤️' },
-      2: { text: '多云', icon: '⛅' },
-      3: { text: '阴', icon: '☁️' },
-      45: { text: '雾', icon: '🌫️' },
-      48: { text: '雾凇', icon: '🌫️' },
-      51: { text: '小毛毛雨', icon: '🌦️' },
-      53: { text: '中毛毛雨', icon: '🌧️' },
-      55: { text: '大毛毛雨', icon: '🌧️' },
-      61: { text: '小雨', icon: '🌧️' },
-      63: { text: '中雨', icon: '🌧️' },
-      65: { text: '大雨', icon: '🌧️' },
-      71: { text: '小雪', icon: '🌨️' },
-      73: { text: '中雪', icon: '❄️' },
-      75: { text: '大雪', icon: '❄️' },
-      77: { text: '雪粒', icon: '🌨️' },
-      80: { text: '小阵雨', icon: '🌦️' },
-      81: { text: '中阵雨', icon: '🌧️' },
-      82: { text: '大阵雨', icon: '⛈️' },
-      85: { text: '小阵雪', icon: '🌨️' },
-      86: { text: '大阵雪', icon: '❄️' },
-      95: { text: '雷暴', icon: '⛈️' },
-      96: { text: '雷暴冰雹', icon: '⛈️' },
-      99: { text: '雷暴冰雹', icon: '⛈️' },
-    };
-
-    // 状态管理
-    let cities = ["西安市","渭南市","延安市","汉中市","武汉市","宜昌市","襄阳市","孝感市","荆州市","咸宁市","随州市","郑州市","开封市","安阳市","鹤壁市","焦作市","周口市","天水市","兰州市"];
-
-    // 初始化
-    function init() {
-      renderCities();
-    }
-
-    // 保存城市列表
-    function saveCities() {
-      // 不保存到本地存储，始终使用默认城市列表
-    }
-
-    // 添加城市
-    function addCity() {
-      const input = document.getElementById('cityInput');
-      let name = input.value.trim();
-      
-      // 如果输入的是经纬度格式，尝试解析
-      if (!name) return;
-      
-      // 模糊匹配
-      const matchCity = Object.keys(CITIES).find(c => 
-        c.includes(name) || name.includes(c)
-      );
-      
-      if (matchCity) {
-        name = matchCity;
-      } else if (!CITIES[name]) {
-        alert('未找到该城市，请输入正确的城市名！');
-        return;
-      }
-      
-      if (cities.includes(name)) {
-        alert('该城市已在列表中！');
-        return;
-      }
-      
-      cities.push(name);
-      saveCities();
-      input.value = '';
-      renderCities();
-    }
-
-    // 删除城市
-    function deleteCity(name) {
-      cities = cities.filter(c => c !== name);
-      saveCities();
-      renderCities();
-    }
-
-    // 渲染城市列表
-    async function renderCities() {
-      const container = document.getElementById('cityList');
-      
-      if (cities.length === 0) {
-        container.innerHTML = `
-          <div class="empty-state">
-            <div class="icon">🌤️</div>
-            <p>还没有添加城市</p>
-            <p style="font-size:12px;margin-top:8px">在上方搜索框输入城市名添加</p>
-          </div>
-          <div class="quick-cities">
-            ${Object.keys(CITIES).slice(0, 12).map(c => 
-              `<button class="quick-city" onclick="cities.push('${c}');saveCities();renderCities()">${c}</button>`
-            ).join('')}
-          </div>
-        `;
-        return;
-      }
-      
-      container.innerHTML = cities.map(name => `
-        <div class="city-card" id="card-${name}" onclick="openDetail('${name}')" style="cursor:pointer">
-          <div class="city-card-header">
-            <span class="city-name">${name}</span>
-            <button class="delete-btn" onclick="deleteCity('${name}')">×</button>
-          </div>
-          <div id="weather-${name}">
-            <div class="loading">加载中</div>
-          </div>
-        </div>
-      `).join('');
-      
-      // 并行获取天气
-      cities.forEach(name => fetchWeather(name));
-    }
-
-    // 获取天气
-        async function fetchWeather(name) {
-      const city = CITIES[name];
-      if (!city) return;
-      
-      document.getElementById(`weather-${name}`).innerHTML = '<div style="text-align:center;padding:40px;color:#fff"><span style="font-size:32px">⏳</span><br>加载中...</div>';
-      
-      try {
-        // 使用中国天气网API
-        const code = city.code;
-        const res = await fetch(`https://d1.weather.com.cn/weather/${code}.html`, {
-          headers: {
-            'Referer': 'https://www.weather.com.cn/',
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)'
-          }
-        });
-        
-        if (!res.ok) throw new Error('网络错误');
-        
-        const text = await res.text();
-        
-        // 解析中国天气网返回的HTML数据
-        const data = parseChinaWeather(text);
-        
-        renderWeather(name, data);
-      } catch (e) {
-        console.error('获取天气失败:', e);
-        // 备用：使用Open-Meteo
-        try {
-          const url = `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=Asia/Shanghai&forecast_days=3`;
-          const res = await fetch(url);
-          const data = await res.json();
-          renderWeather(name, { from: 'openmeteo', ...data });
-        } catch (e2) {
-          document.getElementById(`weather-${name}`).innerHTML = `
-            <div style="color:#ff6b6b;text-align:center;padding:20px">
-              ⚠️ 加载失败: ${e.message}
-              <button onclick="fetchWeather('${name}')" style="margin-left:10px;background:#ff6b6b;color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer">重试</button>
-            </div>
-          `;
-        }
-      }
-    }
-    
-    // 解析中国天气网数据
-    function parseChinaWeather(html) {
-      const result = { from: 'chinaweather' };
-      
-      // 提取温度
-      const tempMatch = html.match(/temp1\s*:\s*['""]?([^'"",\s]+)/);
-      result.temp = tempMatch ? parseInt(tempMatch[1]) : 20;
-      
-      // 提取天气描述
-      const weatherMatch = html.match(/weather1\s*:\s*['""]?([^'"",\s]+)/);
-      result.weatherText = weatherMatch ? weatherMatch[1] : '晴';
-      result.weatherCode = getWeatherCode(result.weatherText);
-      
-      // 提取湿度
-      const humidityMatch = html.match(/sd1\s*:\s*['""]?([^'"",%\s]+)/);
-      result.humidity = humidityMatch ? humidityMatch[1] : '50';
-      
-      // 提取风速
-      const windMatch = html.match(/wses1\s*:\s*['""]?([^'"",\s]+)/);
-      result.windSpeed = windMatch ? windMatch[1] : '0';
-      
-      // 提取风向
-      const windDirMatch = html.match(/wses2\s*:\s*['""]?([^'"",\s]+)/);
-      result.windDir = windDirMatch ? windDirMatch[1] : '无风';
-      
-      // 提取3天预报
-      result.forecast = [];
-      for (let i = 1; i <= 3; i++) {
-        const maxMatch = html.match(new RegExp(`temp${i}\s*:\s*['""]?([^'"",\s]+)`));
-        const minMatch = html.match(new RegExp(`tempn${i}\s*:\s*['""]?([^'"",\s]+)`));
-        const dayMatch = html.match(new RegExp(`day${i}\s*:\s*['""]?([^'"",\s]+)`));
-        
-        result.forecast.push({
-          high: maxMatch ? parseInt(maxMatch[1]) : result.temp + 3,
-          low: minMatch ? parseInt(minMatch[1]) : result.temp - 3,
-          day: dayMatch ? dayMatch[1] : ['今天', '明天', '后天'][i-1]
-        });
-      }
-      
-      return result;
-    }
-    
-    // 根据天气文字获取天气代码
-    function getWeatherCode(text) {
-      const map = {
-        '晴': '00', '多云': '01', '阴': '02', '雷阵雨': '03', '冰雹': '05',
-        '雨夹雪': '06', '小雨': '07', '中雨': '08', '大雨': '09', '暴雨': '11',
-        '小雪': '18', '中雪': '19', '大雪': '20', '暴雪': '21', '雾': '28',
-        '霾': '53', '大雾': '57'
-      };
-      return map[text] || '00';
-    }
-    
-    // 渲染天气卡片
-    function renderWeather(name, data) {
-      const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
-      let html = '';
-      
-      if (data.from === 'chinaweather') {
-        // 中国天气网数据
-        const wInfo = WEATHER_CODES[data.weatherCode] || { icon: '☀️', text: data.weatherText };
-        
-        html = `
-          <div class="current-weather">
-            <span class="weather-icon">${wInfo.icon}</span>
-            <div>
-              <span class="temp">${data.temp}°</span>
-              <div class="weather-desc">${data.weatherText} · 体感 ${data.temp - 2}°</div>
-            </div>
-          </div>
-          
-          <div class="details">
-            <div class="detail-item">
-              <div class="detail-label">湿度</div>
-              <div class="detail-value">${data.humidity}%</div>
-            </div>
-            <div class="detail-item">
-              <div class="detail-label">风速</div>
-              <div class="detail-value">${data.windSpeed}级</div>
-            </div>
-            <div class="detail-item">
-              <div class="detail-label">风向</div>
-              <div class="detail-value">${data.windDir}</div>
-            </div>
-          </div>
-          
-          <div class="forecast">
-            <div class="forecast-title">天气预报</div>
-            <div class="forecast-list">
-              ${data.forecast.map((d, i) => `
-                <div class="forecast-item">
-                  <div class="forecast-day">${d.day || (i === 0 ? '今天' : i === 1 ? '明天' : '后天')}</div>
-                  <div class="forecast-icon">${WEATHER_CODES['01'].icon}</div>
-                  <div class="forecast-temp">${d.low}° ~ ${d.high}°</div>
-                </div>
-              `).join('')}
-            </div>
-          </div>
-        `;
-      } else {
-        // Open-Meteo备用数据
-        const current = data.current;
-        const daily = data.daily;
-        const weather = WEATHER_CODES[current.weather_code] || { text: '未知', icon: '❓' };
-        
-        html = `
-          <div class="current-weather">
-            <span class="weather-icon">${weather.icon}</span>
-            <div>
-              <span class="temp">${Math.round(current.temperature_2m)}°</span>
-              <div class="weather-desc">${weather.text} · 体感 ${Math.round(current.apparent_temperature)}°</div>
-            </div>
-          </div>
-          
-          <div class="details">
-            <div class="detail-item">
-              <div class="detail-label">湿度</div>
-              <div class="detail-value">${current.relative_humidity_2m}%</div>
-            </div>
-            <div class="detail-item">
-              <div class="detail-label">风速</div>
-              <div class="detail-value">${current.wind_speed_10m} km/h</div>
-            </div>
-            <div class="detail-item">
-              <div class="detail-label">体感</div>
-              <div class="detail-value">${Math.round(current.apparent_temperature)}°</div>
-            </div>
-          </div>
-          
-          <div class="forecast">
-            <div class="forecast-title">天气预报</div>
-            <div class="forecast-list">
-              ${daily.time.map((t, i) => {
-                const d = new Date(t);
-                const day = dayNames[d.getDay()];
-                const w = WEATHER_CODES[daily.weather_code[i]] || { text: '未知', icon: '❓' };
-                return `
-                  <div class="forecast-item">
-                    <div class="forecast-day">${i === 0 ? '今天' : '周' + day}</div>
-                    <div class="forecast-icon">${w.icon}</div>
-                    <div class="forecast-temp">${Math.round(daily.temperature_2m_min[i])}° ~ ${Math.round(daily.temperature_2m_max[i])}°</div>
-                  </div>
-                `;
-              }).join('')}
-            </div>
-          </div>
-        `;
-      }
-      
-      document.getElementById(`weather-${name}`).innerHTML = html;
-    }
-    
-// 详情页功能
-    let currentDetailCity = null;
-    
-    function openDetail(cityName) {
-      currentDetailCity = cityName;
-      document.getElementById('detailModal').classList.add('active');
-      document.getElementById('detailCityName').textContent = cityName;
-      fetchDetailWeather(cityName);
-    }
-    
-    function closeDetail() {
-      document.getElementById('detailModal').classList.remove('active');
-    }
-    
-    async function fetchDetailWeather(name) {
-      const city = CITIES[name];
-      if (!city) return;
-      
-      try {
-        const code = city.code;
-        const res = await fetch(`https://d1.weather.com.cn/weather/${code}.html`, {
-          headers: {
-            'Referer': 'https://www.weather.com.cn/',
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)'
-          }
-        });
-        
-        if (!res.ok) throw new Error('网络错误');
-        
-        const text = await res.text();
-        const data = parseChinaWeather(text);
-        
-        // 更新详情页
-        const wInfo = WEATHER_CODES[data.weatherCode] || { icon: '☀️', text: data.weatherText };
-        document.getElementById('detailIcon').textContent = wInfo.icon;
-        document.getElementById('detailTemp').textContent = data.temp + '°';
-        document.getElementById('detailDesc').textContent = data.weatherText;
-        document.getElementById('detailHumidity').textContent = data.humidity + '%';
-        document.getElementById('detailWind').textContent = data.windSpeed + '级 ' + data.windDir;
-        document.getElementById('detailFeels').textContent = (data.temp - 2) + '°';
-        document.getElementById('detailPressure').textContent = '-- hPa';
-        
-        // 生成24小时预报
-        let hourlyHtml = '';
-        const now = new Date();
-        const baseTemp = data.temp;
-        
-        for (let i = 0; i < 24; i++) {
-          const hour = (now.getHours() + i) % 24;
-          const tempVariation = Math.sin((hour - 6) * Math.PI / 12) * 5;
-          const temp = baseTemp + Math.round(tempVariation);
-          
-          hourlyHtml += `
-            <div class="hourly-item">
-              <div class="hourly-time">${i === 0 ? '现在' : hour + ':00'}</div>
-              <div class="hourly-icon">${wInfo.icon}</div>
-              <div class="hourly-temp">${temp}°</div>
-            </div>
-          `;
-        }
-        
-        document.getElementById('hourlyList').innerHTML = hourlyHtml;
-        
-      } catch (e) {
-        console.error('获取详情失败:', e);
-        // 使用Open-Meteo备用
-        try {
-          const url = `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,surface_pressure&hourly=temperature_2m,weather_code&timezone=Asia/Shanghai&forecast_days=2`;
-          const res = await fetch(url);
-          const d = await res.json();
-          
-          const current = d.current;
-          const hourly = d.hourly;
-          const weather = WEATHER_CODES[current.weather_code] || { text: '未知', icon: '❓' };
-          
-          document.getElementById('detailIcon').textContent = weather.icon;
-          document.getElementById('detailTemp').textContent = Math.round(current.temperature_2m) + '°';
-          document.getElementById('detailDesc').textContent = weather.text;
-          document.getElementById('detailHumidity').textContent = current.relative_humidity_2m + '%';
-          document.getElementById('detailWind').textContent = current.wind_speed_10m + ' km/h';
-          document.getElementById('detailFeels').textContent = Math.round(current.apparent_temperature) + '°';
-          document.getElementById('detailPressure').textContent = (current.surface_pressure || '--') + ' hPa';
-          
-          const now = new Date();
-          const currentHour = now.getHours();
-          let hourlyHtml = '';
-          
-          for (let i = 0; i < 24; i++) {
-            const hourIndex = currentHour + i;
-            if (hourIndex >= hourly.time.length) break;
-            
-            const time = new Date(hourly.time[hourIndex]);
-            const hour = time.getHours();
-            const w = WEATHER_CODES[hourly.weather_code[hourIndex]] || { icon: '❓' };
-            
-            hourlyHtml += `
-              <div class="hourly-item">
-                <div class="hourly-time">${i === 0 ? '现在' : hour + ':00'}</div>
-                <div class="hourly-icon">${w.icon}</div>
-                <div class="hourly-temp">${Math.round(hourly.temperature_2m[hourIndex])}°</div>
-              </div>
-            `;
-          }
-          
-          document.getElementById('hourlyList').innerHTML = hourlyHtml;
-        } catch (e2) {
-          console.error('备用也失败:', e2);
-        }
-      }
-    }
-
-    // 启动
-    init();
-  </script>
-
-  <!-- 详情页 -->
-  <div id="detailModal" class="detail-modal">
-    <div class="detail-header">
-      <button class="back-btn" onclick="closeDetail()">←</button>
-      <span class="detail-title" id="detailCityName">城市</span>
-    </div>
-    <div class="detail-content">
-      <div class="detail-main">
-        <div class="detail-icon" id="detailIcon">☀️</div>
-        <div class="detail-temp" id="detailTemp">--°</div>
-        <div class="detail-desc" id="detailDesc">--</div>
-      </div>
-      <div class="detail-grid">
-        <div class="detail-item-large">
-          <div class="label">湿度</div>
-          <div class="value" id="detailHumidity">--%</div>
-        </div>
-        <div class="detail-item-large">
-          <div class="label">风速</div>
-          <div class="value" id="detailWind">-- km/h</div>
-        </div>
-        <div class="detail-item-large">
-          <div class="label">体感温度</div>
-          <div class="value" id="detailFeels">--°</div>
-        </div>
-        <div class="detail-item-large">
-          <div class="label">气压</div>
-          <div class="value" id="detailPressure">-- hPa</div>
-        </div>
-      </div>
-      <div class="hourly-section">
-        <div class="section-title">24小时预报</div>
-        <div class="hourly-list" id="hourlyList"></div>
-      </div>
-    </div>
-  </div>
 </body>
 </html>
